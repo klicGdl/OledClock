@@ -21,6 +21,8 @@
 //load DHT library
 #include <DHT.h>
 
+#define DEBUG 0
+
 /***********************/
 const unsigned char epd_bitmap_Bitmap [] PROGMEM = {
   // 'klic, 64x48px
@@ -95,7 +97,7 @@ void setup()
   // Inicializar OLED
   display.begin(SSD1306_SWITCHCAPVCC, 0x3C);  // initialize with I2C 0x3C (for 64x48 display)
   display.clearDisplay();
-  
+
    // Initialize serial port
   Serial.begin(115200);
 
@@ -103,6 +105,7 @@ void setup()
   Serial.println("");
   Serial.print("conectando a ");
   Serial.print(ssid);
+
   // OLED Display
   display.setTextSize(1);
   display.setTextColor(WHITE);
@@ -129,9 +132,9 @@ void setup()
   timeClient.begin();
 
   // init DHT
-  dht.begin();
+  dht.begin(40);
   delay(2000);
-
+  
 }
 
 
@@ -142,12 +145,15 @@ void loop()
 {
   float h, t;
   // read the humidity and temperature
+  
   h = dht.readHumidity();
   t = dht.readTemperature();
-  
+
+#if DEBUG
   // print in the console
   print_temp_and_humid(t, h,"DHT22");
-  
+#endif
+
   // now print it in the Oled display
   DisplayTempAndHumidity(t,h);
 
@@ -155,15 +161,26 @@ void loop()
   {   
      
     // Update NTP CLient in UNIX UTC
+    timeClient.forceUpdate();
     timeClient.update();
     unsigned long utc =  timeClient.getEpochTime();
-
+    int tries = 0;
+    if (utc < 1630373993 && tries < 5)
+    {
+      timeClient.update();
+      tries++;
+    }
+    
     // Convert to local time
     local = gm.toLocal(utc);
+#if DEBUG
+    Serial.println(utc);
+    Serial.println(local);
+    Serial.println(timeClient.getFormattedTime());
 
     // Print formated in serial port
     printTime(local);
-    
+#endif
     //  Show in OLED Display
     printTimeOLED(local);
     
@@ -175,18 +192,8 @@ void loop()
   }
     
   delay(10000);    // wait 
-
 }
 
-void print_temp_and_humid(float t, float h, String text)
-{
- // Print the values read
-   Serial.println(text);
-   Serial.print("Humedad: "); 
-   Serial.println(h);
-   Serial.print("Temperatura: ");
-   Serial.println(t);
-}
 
 /*
  * Print the temperature and humidity in the Oled Display
@@ -203,7 +210,7 @@ void DisplayTempAndHumidity(float t, float h)
   display.print("H: ");
   display.print(h);
   display.println(" %");
-  display.display();
+  //display.display();
 }
 
 
@@ -246,17 +253,6 @@ String ConvertTime(time_t t)
   return hora;
 }
 
-// Send time and date to serial port
-void printTime(time_t t)
-{
-  Serial.println("");
-  Serial.print("Fecha local: ");
-  Serial.print(ConvertDate(t));
-  Serial.println("");
-  Serial.print("Hora local: ");
-  Serial.print(ConvertTime(t));
-}
-
 // Show in the OLED Display
 void printTimeOLED(time_t t)
 {
@@ -273,5 +269,30 @@ void printTimeOLED(time_t t)
   display.println(day(t));
   display.println(ConvertMonthAndYear(t));
   display.display();
-  display.clearDisplay();
 }
+
+#if DEBUG 
+
+void print_temp_and_humid(float t, float h, String text)
+{
+ // Print the values read
+   Serial.println(text);
+   Serial.print("Humedad: "); 
+   Serial.println(h);
+   Serial.print("Temperatura: ");
+   Serial.println(t);
+}
+
+// Send time and date to serial port
+void printTime(time_t t)
+{
+  Serial.println("");
+  Serial.print("Fecha local: ");
+  Serial.print(ConvertDate(t));
+  Serial.println("");
+  Serial.print("Hora local: ");
+  Serial.print(ConvertTime(t));
+}
+
+
+#endif
